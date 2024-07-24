@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">智联云v1.0</string>
+    <string name="app_title">智联云</string>
+    <string name="logout">退出登录</string>
+    <string name="profile_info">个人信息</string>
+    <string name="login">登录</string>
+    <string name="username">用户名</string>
+    <string name="password">密码</string>
+    <string name="login_success">登录成功</string>
+    <string name="login_failed">登录失败</string>
+    <string name="icd_registration_completed">ICD device registration completed, How to trigger to switch to Active Mode : %1$s</string>
+    <string name="rendezvous_over_ble_scanning_text">Scanning for BLE device %1$s</string>
+
+
+    <string name="rendezvous_over_ble_scanning_failed_text">Device not found</string>
+    <string name="subtitle">基于matter协议</string>
+    <string name="description">跨生态设备原子化复用平台</string>
+    <string name="device_details">设备详细</string>
+</resources>
