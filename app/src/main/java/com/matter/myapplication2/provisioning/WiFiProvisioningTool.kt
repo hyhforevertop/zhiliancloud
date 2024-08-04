@@ -1,6 +1,7 @@
 package com.matter.myapplication2.provisioning
 
 import APICommand
+import MdnsServiceDiscovery
 import TokenManager
 import android.app.AlertDialog
 import android.bluetooth.BluetoothGatt
@@ -27,7 +28,6 @@ import com.matter.myapplication2.util.WebSocketClient
 import com.matter.myapplication2.util.WebSocketResponseListener
 import es.dmoral.toasty.Toasty
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import okhttp3.Call
@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit
 
 @ExperimentalCoroutinesApi
 class WiFiProvisioningTool(private val context: Context, private val scope: CoroutineScope) {
-
+  val mdnsServiceDiscovery = MdnsServiceDiscovery(context)
   private lateinit var deviceInfo: CHIPDeviceInfo
   private var gatt: BluetoothGatt? = null
   private lateinit var wiFiCredentials: WiFiCredentials
@@ -60,20 +60,15 @@ class WiFiProvisioningTool(private val context: Context, private val scope: Coro
     Log.d(TAG, "Current status: $status")
   }
 
-  fun showToastyMessage(openIp: String) {
-    scope.launch(Dispatchers.Main) {
-      Toasty.success(context, "Open HTTP IP: $openIp", Toast.LENGTH_SHORT).show()
-    }
-  }
 
   fun provisionDeviceWithWiFi() {
 
-    wiFiCredentials = WiFiCredentials(TokenManager.getWifiName().toString(), TokenManager.getWifiPassword().toString())//WiFiCredentials(TokenManager.getWifiName(),TokenManager.getWifiPassword().toString())
+    wiFiCredentials = WiFiCredentials(TokenManager.getWifiName().toString(), TokenManager.getWifiPassword().toString()) //WiFiCredentials(TokenManager.getWifiName(),TokenManager.getWifiPassword().toString())
     deviceInfo = DeviceInfoStorage.getDeviceInfo(context)!!
     Log.e( "provisionDeviceWithWiFi", TokenManager.getWifiName().toString())
     Log.e( "provisionDeviceWithWiFi", TokenManager.getWifiPassword().toString())
     Log.e("provisionDeviceWithWiFi", deviceInfo.toString())
-    Log.e("provisionDeviceWithWiFi", wiFiCredentials.toString())
+    Log.e("provisionDeviceWithWiFi", "${wiFiCredentials.ssid} ${wiFiCredentials.password}")
     startConnectingToDevice()
 
   }
@@ -106,14 +101,11 @@ class WiFiProvisioningTool(private val context: Context, private val scope: Coro
     }
   }
 
-
   private fun startConnectingToDevice() {
     if (gatt != null)
     { Log.e("HYH", "gatt is not null")
       return
     }
-
-
 
     scope.launch {
       Log.e("HYH", "startConnectingToDevice")
@@ -152,6 +144,8 @@ class WiFiProvisioningTool(private val context: Context, private val scope: Coro
     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
   }
 
+
+
   inner class ConnectionCallback : GenericChipDeviceListener() {
     override fun onConnectDeviceComplete() {
       Log.d(TAG, "onConnectDeviceComplete")
@@ -171,31 +165,22 @@ class WiFiProvisioningTool(private val context: Context, private val scope: Coro
         Log.e("HYH", "$lastDevice, $deviceIdList")
 
         scope.launch {
-          var attempt = 0
-          while (attempt < 3) {
-            try {
-              enhancedCommission()
-              break
-            } catch (e: Exception) {
-              Log.e("try", e.toString())
-              e.printStackTrace()
-              attempt++
-            }
-          }
+          enhancedCommission()
         }
       } else {
-        Toasty.error(context, "Commissioning failed", Toast.LENGTH_SHORT).show()
+        Log.e("onCommissioningComplete", "onCommissioningComplete failed")
       }
-
+      mdnsServiceDiscovery.stopDiscovery()
       DeviceIdUtil.setCommissionedNodeId( context, nodeId)
       ChipClient.getDeviceController(context).close()
     }
+
 
     private suspend fun enhancedCommission() {
       val lastDevice = DeviceIdUtil.getLastDeviceId(context).toString(10).toLong()
       val TAG = "EnhancedCommission"
       val testDuration = 180
-      val testIteration = (1000..10000).random()
+      val testIteration = 1000
       setCurrentStatus("step2")
       val devicePointer = try {
         ChipClient.getConnectedDevicePointer(context, lastDevice)
@@ -205,12 +190,12 @@ class WiFiProvisioningTool(private val context: Context, private val scope: Coro
         return
       }
       val setupPinCode = (12344523..99999999).random().toLong()//"20202021".toULong().toLong()
-      val discraminator = deviceInfo.discriminator.toInt()
+      val discriminator = deviceInfo.discriminator.toInt()
       deviceController.openPairingWindowWithPINCallback(
         devicePointer,
         testDuration,
         testIteration.toLong(),
-        discraminator,
+        discriminator,
         setupPinCode,
         object : OpenCommissioningCallback {
           override fun onError(status: Int, deviceId: Long) {
@@ -218,6 +203,14 @@ class WiFiProvisioningTool(private val context: Context, private val scope: Coro
           }
 
           override fun onSuccess(deviceId: Long, manualPairingCode: String?, qrCode: String?) {
+
+
+            mdnsServiceDiscovery.discoverServices()
+            Thread.sleep(5000)
+            val dtValue=mdnsServiceDiscovery.getDtValue().toString()
+            val vpValue=mdnsServiceDiscovery.getVpValue().toString()
+
+
             val WS_URL = HttpApi.WS_HOST.value
 
             val webSocketClient = WebSocketClient(WS_URL, MyWebSocketListener(object :
@@ -225,7 +218,7 @@ class WiFiProvisioningTool(private val context: Context, private val scope: Coro
               override fun onMessageReceived(message: String) {
                 if (message.contains("result")) {
                   setCurrentStatus("step3")
-                  addDevice(message, manualPairingCode.toString())
+                  addDevice(message, manualPairingCode.toString(),dtValue,vpValue)
                 }
 
               }
@@ -233,8 +226,6 @@ class WiFiProvisioningTool(private val context: Context, private val scope: Coro
               override fun onBytesReceived(bytes: ByteString) {
                 println("Bytes received: ${bytes.hex()}")
               }
-
-
 
             }, ::setCurrentStatus))
 
@@ -244,11 +235,14 @@ class WiFiProvisioningTool(private val context: Context, private val scope: Coro
               val jsonMessage = JsonObject().apply {
                 addProperty("message_id", UUID.randomUUID().toString())
                 addProperty("command", APICommand.COMMISSION_WITH_CODE.value)
+
                 val args = JsonObject().apply {
                   addProperty("code", manualPairingCode.toString())
+                  addProperty("network_only",true)
                 }
                 add("args", args)
               }
+              Log.e(TAG, jsonMessage.toString())
               webSocketClient.sendMessage(jsonMessage.toString())
             }catch (e:Exception)
             {
@@ -262,13 +256,18 @@ class WiFiProvisioningTool(private val context: Context, private val scope: Coro
       )
     }
 
-    private fun addDevice(message: String, qrcode: String) {
+    private fun addDevice(message: String, qrcode: String ,dT:String,vP:String) {
       setCurrentStatus("step4")
+
       val jsonObject = JSONObject(message)
       jsonObject.put("qrcode", qrcode)
+      jsonObject.put("dT", dT)
+      jsonObject.put("vP", vP)
       val resultObject = jsonObject.getJSONObject("result")
       resultObject.remove("attributes")
       resultObject.remove("attribute_subscriptions")
+
+      Log.e("addDevice", jsonObject.toString())
 
       val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)

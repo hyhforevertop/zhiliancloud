@@ -2,8 +2,6 @@ package com.matter.myapplication2.DeviceFunction
 
 import TokenManager
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +12,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,20 +23,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.matter.myapplication2.ui.Device
 import com.matter.myapplication2.util.HttpApi
-import com.matter.myapplication2.util.HttpClient
 import es.dmoral.toasty.Toasty
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.Call
-import okhttp3.Callback
-import okhttp3.Response
-import java.io.IOException
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 
 @Composable
-fun Device_Switch(device: MutableState<Device?>, coroutineScope: CoroutineScope, context: Context) {
-    var switchStatus by remember { mutableStateOf(device.value?.deviceStatus == "On") }
+fun Device_Switch(device: Device?, coroutineScope: CoroutineScope, context: Context) {
+    var switchStatus by remember { mutableStateOf(device?.deviceStatus == "On") }
+
+    var isChecked by remember { mutableStateOf(false) }
+
+    if (isChecked)
+        LaunchedEffect(isChecked) {
+            val check = changeDeviceStatus(device)
+            if (check) {
+                Toasty.success(context, "操作成功", Toast.LENGTH_SHORT).show()
+                changeStatus(device)
+            } else {
+                Toasty.error(context, "操作失败", Toast.LENGTH_SHORT).show()
+            }
+            isChecked = false
+        }
 
     Row(
         modifier = Modifier,
@@ -48,25 +58,52 @@ fun Device_Switch(device: MutableState<Device?>, coroutineScope: CoroutineScope,
         Text("开关: ", fontWeight = FontWeight.Bold)
         Switch(
             checked = switchStatus,
-            onCheckedChange = { isChecked ->
-                switchStatus = isChecked
-                device.value = device.value?.copy(deviceStatus = if (isChecked) "On" else "Off")
-                coroutineScope.launch {
-                    Turn_On_Off_Light(device, context)
-                }
+            onCheckedChange = {
+                isChecked = true
+//                isChecked ->
+//                switchStatus = isChecked
+//                device.value = device.value?.copy(deviceStatus = if (isChecked) "On" else "Off")
+//                coroutineScope.launch {
+//                    Turn_On_Off_Light(device, context)
+//                }
+
+
             }
         )
+    }
+
+
+}
+
+fun changeStatus(device: Device?) {
+    if (device?.deviceStatus == "On") {
+        device.deviceStatus = "Off"
+    } else {
+        device?.deviceStatus = "On"
     }
 }
 
 @Composable
 fun Device_Brightness(
-    device: MutableState<Device?>,
+    device: Device?,
     coroutineScope: CoroutineScope,
     context: Context,
     modifier: Modifier = Modifier
 ) {
-    var brightnessLevel by remember { mutableStateOf( 0.5f) }
+    var brightnessLevel by remember { mutableStateOf(0.5f) }
+
+    var isChecked by remember { mutableStateOf(false) }
+
+    if (isChecked)
+        LaunchedEffect(isChecked) {
+            val check = adjustBrightness(device, brightnessLevel)
+            if (check) {
+                Toasty.success(context, "操作成功", Toast.LENGTH_SHORT).show()
+            } else {
+                Toasty.error(context, "操作失败", Toast.LENGTH_SHORT).show()
+            }
+            isChecked = false
+        }
 
     Row(
         modifier = modifier,
@@ -84,9 +121,7 @@ fun Device_Brightness(
                 brightnessLevel = value
             },
             onValueChangeFinished = {
-                coroutineScope.launch {
-                    adjustBrightness(device, brightnessLevel, context)
-                }
+                isChecked=true
             },
             valueRange = 0f..255f,
             steps = 254,
@@ -95,48 +130,37 @@ fun Device_Brightness(
     }
 }
 
-suspend fun Turn_On_Off_Light(device: MutableState<Device?>, context: Context) {
-    withContext(Dispatchers.IO) {
-        val json = ""
-        HttpClient.post(
-            url = "${HttpApi.LIGHT_OPERATION.value}/${device.value?.deviceId}",
-            token = TokenManager.getToken().toString(),
-            json = json,
-            callback = object : Callback {
-                override fun onFailure(call: Call, e: IOException) {
-                    Log.e("Turn_On_Off_Light", e.message.toString())
-                    Handler(Looper.getMainLooper()).post {
-                        Toasty.error(context, "操作失败", Toast.LENGTH_SHORT).show()
-                        // 回滚开关状态
-                    }
-                }
 
-                override fun onResponse(call: Call, response: Response) {
-                    val responseBody = response.body?.string()
-                    if (response.isSuccessful) {
-                        Log.e("Turn_On_Off_Light", responseBody.toString())
-                        Handler(Looper.getMainLooper()).post {
-                            Toasty.success(context, "操作成功", Toast.LENGTH_SHORT).show()
-                        }
-                    } else {
-                        Log.e("Turn_On_Off_Light", responseBody.toString())
-                        Handler(Looper.getMainLooper()).post {
-                            Toasty.error(context, "操作失败", Toast.LENGTH_SHORT).show()
-                            // 回滚开关状态
-                        }
-                    }
-                }
-            }
-        )
+suspend fun changeDeviceStatus(device: Device?) = withContext(Dispatchers.IO) {
+
+    val json=""
+    val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+    val requestBody = json.toRequestBody(mediaType)
+
+    val client = OkHttpClient()
+    val request = Request.Builder()
+        .url("${HttpApi.LIGHT_OPERATION.value}/${device?.deviceId}")
+        .addHeader("Authorization", "${TokenManager.getToken()}")
+        .post(requestBody)
+        .build()
+    val response = client.newCall(request).execute()
+
+    if (response.code == 200) {
+        Log.e("Turn_On_Off_Light", response.body?.string().toString())
+        return@withContext true
+    } else {
+        Log.e("Turn_On_Off_Light", response.body?.string().toString())
+        return@withContext false
     }
 }
 
 
-suspend fun adjustBrightness(device: MutableState<Device?>, brightnessLevel: Float, context: Context) {
+suspend fun adjustBrightness(device: Device?, brightnessLevel: Float) =
     withContext(Dispatchers.IO) {
+
         val json = """
             {
-                "deviceId": "${device.value?.deviceId}",
+                "deviceId": "${device?.deviceId}",
                 "level": ${brightnessLevel.toInt()},
                 "transitionTime": 1,
                 "optionMask": 1,
@@ -144,33 +168,16 @@ suspend fun adjustBrightness(device: MutableState<Device?>, brightnessLevel: Flo
             }
         """
         Log.e("AdjustBrightness", json)
-        HttpClient.post(
-            url = HttpApi.LIGHT_ADJUST.value,
-            token = TokenManager.getToken().toString(),
-            json = json,
-            callback = object : Callback {
-                override fun onFailure(call: Call, e: IOException) {
-                    Log.e("AdjustBrightness", e.message.toString())
-                    Handler(Looper.getMainLooper()).post {
-                        Toasty.error(context, "亮度调节失败", Toast.LENGTH_SHORT).show()
-                    }
-                }
 
-                override fun onResponse(call: Call, response: Response) {
-                    val responseBody = response.body?.string()
-                    if (response.isSuccessful) {
-                        Log.e("AdjustBrightness", responseBody.toString())
-                        Handler(Looper.getMainLooper()).post {
-                            Toasty.success(context, "亮度调节成功", Toast.LENGTH_SHORT).show()
-                        }
-                    } else {
-                        Log.e("AdjustBrightness", responseBody.toString())
-                        Handler(Looper.getMainLooper()).post {
-                            Toasty.error(context, "亮度调节失败", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-            }
-        )
+        val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+        val requestBody = json.toRequestBody(mediaType)
+        val client = OkHttpClient()
+        val request = Request.Builder()
+            .url(HttpApi.LIGHT_ADJUST.value)
+            .addHeader("Authorization", "${TokenManager.getToken()}")
+            .post(requestBody)
+            .build()
+        val response = client.newCall(request).execute()
+
+        return@withContext response.code == 200
     }
-}

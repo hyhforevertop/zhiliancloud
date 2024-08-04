@@ -56,7 +56,7 @@ fun MainScreen(navController: NavHostController,
                   paddingValues -> paddingContent(paddingValues)
         },
         bottomBar = {
-            if (currentPage!="deviceDetail/{deviceId}")
+            if (currentPage!="deviceDetail")
             BottomBar(
                 modifier = modifier,
                 homeIcon = homeIcon,

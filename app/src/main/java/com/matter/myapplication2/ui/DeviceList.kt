@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,6 +28,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.king.ultraswiperefresh.NestedScrollMode
@@ -36,76 +38,83 @@ import com.king.ultraswiperefresh.rememberUltraSwipeRefreshState
 import com.matter.myapplication2.DeviceRepository.DeviceRepository
 import com.matter.myapplication2.R
 import com.matter.myapplication2.navigateSingleTopTo
-import com.matter.myapplication2.refreshToken
+import com.matter.myapplication2.util.HttpApi
 import es.dmoral.toasty.Toasty
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okio.IOException
+import org.json.JSONException
+import org.json.JSONObject
 
 
 @Composable
-fun DeviceList(modifier: Modifier = Modifier,navController: NavHostController) {
+fun DeviceList(modifier: Modifier = Modifier, navController: NavHostController) {
     // Device list state
+
+
     val deviceListState = remember { mutableStateOf<List<Device>>(emptyList()) }
-    val context= LocalContext.current
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     val state = rememberUltraSwipeRefreshState()
 
-    LaunchedEffect(Unit) {
-        val devices = DeviceRepository.getDevices()
-        deviceListState.value = devices
-        // Refresh token and handle navigation if token is invalid
-//        val newToken = withContext(Dispatchers.IO) {
-//            refreshToken(TokenManager.getToken().toString())
-//        }
-//        if (newToken != null) {
-//            TokenManager.setToken(newToken)
-//        } else {
-//            navController.navigate("login") {
-//                popUpTo(navController.graph.startDestinationId) {
-//                    inclusive = true
-//                }
-//                launchSingleTop = true
-//            }
-//            return@LaunchedEffect
-//        }
+    if (DeviceRepository.getDevices().isNotEmpty()) {
+        deviceListState.value = DeviceRepository.getDevices()
+    } else {
+        LaunchedEffect(Unit) {
+            val devices = getDeviceList()
 
-        // Fetch initial device list
-
-        Log.e("LaunchedEffect DeviceList", "Device list updated: ${devices.size}")
-    }
-
-    LaunchedEffect(state.isRefreshing) {
-        if (state.isRefreshing) {
-            // TODO 刷新的逻辑处理，此处的延时只是为了演示效果
-
-            val devices = DeviceRepository.refreshDevices()
-            val token = refreshToken(TokenManager.getToken().toString())
-            if (token != null) {
-                TokenManager.setToken(token)
-            }
-            if (devices.isNotEmpty()) {
-                Toasty.success( context,"刷新成功", Toasty.LENGTH_SHORT).show()
-                deviceListState.value = devices
-            }
-            else
+            if (devices.isEmpty())
             {
-                Toasty.error( context,"刷新失败", Toasty.LENGTH_SHORT).show()
+                Toasty.error(context, "网络问题", Toasty.LENGTH_SHORT).show()
+                TokenManager.clearToken()
+                navController.navigateSingleTopTo("login")
             }
-            state.isRefreshing=false
+            else {
+                deviceListState.value = devices
+                DeviceRepository.setDevices(devices)
+                Toasty.success(context, "Device found", Toasty.LENGTH_SHORT).show()
+            }
+
+            Log.e("LaunchedEffect DeviceList", "Device list updated: ${devices.size}")
         }
     }
+
+    if(state.isRefreshing) {
+        LaunchedEffect(Unit) {
+
+
+            val devices = getDeviceList()
+            deviceListState.value = devices
+            DeviceRepository.setDevices(devices)
+            Login(TokenManager.getUsername()!!, TokenManager.getPassword()!!,TokenManager.getHostIpv4()!!)
+
+            if (devices.isEmpty())
+                Toasty.error(context, "刷新失败", Toasty.LENGTH_SHORT).show()
+            else
+                Toasty.success(context, "刷新成功", Toasty.LENGTH_SHORT).show()
+
+            state.isRefreshing = false
+        }
+    }
+
 
     MainScreen(
         modifier = modifier,
         navController = navController,
-        paddingContent = {
-                paddingValues->
-            UltraSwipeRefresh(state = state,
-                onRefresh = { state.isRefreshing=true },
+        paddingContent = { paddingValues ->
+            UltraSwipeRefresh(
+                state = state,
+                onRefresh = { state.isRefreshing = true },
                 onLoadMore = {},
-                modifier=Modifier.padding(paddingValues),
+                modifier = Modifier.padding(paddingValues),
                 headerScrollMode = NestedScrollMode.FixedContent,
                 headerMaxOffsetRate = 4f,
                 headerIndicator = {
-                    SwipeRefreshHeader(state = it,
+                    SwipeRefreshHeader(
+                        state = it,
                         paddingValues = PaddingValues(top = 50.dp)
                     )
                 },
@@ -114,7 +123,7 @@ fun DeviceList(modifier: Modifier = Modifier,navController: NavHostController) {
 
                 LazyColumn(
                     modifier = Modifier
-                        .padding(10.dp)
+                        .padding(horizontal = 10.dp)
 
                 ) {
 
@@ -132,19 +141,72 @@ fun DeviceList(modifier: Modifier = Modifier,navController: NavHostController) {
     )
 
 
+}
 
 
+suspend fun getDeviceList(): List<Device> = withContext(Dispatchers.IO) {
+    val ListOfDevice = mutableListOf<Device>()
+    val client = OkHttpClient()
 
+    try {
+        val request = Request.Builder()
+            .url("${HttpApi.BASE_URL.value}/device/list/1/100")
+            .addHeader("Authorization", "${TokenManager.getToken()}")
+            .build()
+
+        val response = client.newCall(request).execute()
+
+        if (response.isSuccessful) {
+            val responseBody = response.body?.string()
+            Log.e("getDeviceList", "Response: $responseBody")
+            val jsonObject = responseBody?.let { JSONObject(it) }
+            val dataObject = jsonObject?.getJSONObject("data")
+            val deviceList = dataObject?.getJSONArray("list")
+
+            deviceList?.let { array ->
+                for (i in 0 until array.length()) {
+                    val deviceJson = array.getJSONObject(i)
+                    val device = Device(
+                        deviceId = deviceJson.optString("deviceId"),
+                        userId = deviceJson.getInt("userId"),
+                        deviceName = deviceJson.getString("deviceName"),
+                        deviceType = deviceJson.getString("deviceType"),
+                        deviceModel = deviceJson.optString("deviceModel"),
+                        deviceManufacturer = deviceJson.getString("deviceManufacturer"),
+                        deviceStatus = deviceJson.optString("deviceStatus"),
+                        createDate = deviceJson.getString("createDate"),
+                        updateDate = deviceJson.getString("updateDate"),
+                        location = deviceJson.getString("location"),
+                        qrcode = deviceJson.optString("qrcode"),
+                        nodeId = deviceJson.optInt("nodeId")
+                    )
+                    ListOfDevice.add(device)
+                }
+            }
+        } else {
+            Log.e("DeviceList", "Failed to fetch devices: ${response.message}")
+        }
+    } catch (e: IOException) {
+        Log.e("DeviceList", "onFailure: ${e.message}")
+    } catch (e: JSONException) {
+        Log.e("DeviceList", "JSON parsing error: ${e.message}")
+    }
+
+    return@withContext ListOfDevice
 }
 
 
 @Composable
 fun DeviceItem(device: Device, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    
-    val image= when(device.deviceType)
-    {
-        "260"-> R.drawable.device_light
-        else-> R.drawable.device_unknown
+
+    val image = when (device.deviceType) {
+        "260" -> R.drawable.device_light
+        "261" -> R.drawable.device_light_belt
+        "8888" -> R.drawable.speed_camera
+        "770" -> R.drawable.temperature_sensor
+        "44" ->R.drawable.air_condition
+        "514" -> R.drawable.window_covering
+        else -> R.drawable.device_unknown
     }
     Surface(
         modifier = modifier
@@ -157,7 +219,7 @@ fun DeviceItem(device: Device, modifier: Modifier = Modifier, onClick: () -> Uni
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp) ,// Padding inside the item
+                .padding(16.dp),// Padding inside the item
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -177,7 +239,8 @@ fun DeviceItem(device: Device, modifier: Modifier = Modifier, onClick: () -> Uni
 
                 Text(
                     text = device.deviceName,
-                    )
+                    fontWeight = FontWeight.Bold
+                )
                 Text(
                     text = deviceMap(device.deviceType),
                 )
@@ -197,20 +260,25 @@ data class Device(
     val createDate: String,
     val updateDate: String?,
     val location: String,
-    val qrcode: String?
+    val qrcode: String?,
+    val nodeId: Int
 )
 
-fun deviceMap(deviceType: String):String
-{
-    val deviceTypeInt=deviceType.toInt()
-    return when(deviceTypeInt)
-    {
-        260->"无线调光灯"
-        261->"无线彩灯"
-        0x000F->"开关"
-        0x0106->"光照度传感"
-        else->"未知设备"
+fun deviceMap(deviceType: String): String {
+
+    val deviceTypeInt = deviceType.toInt()
+    return when (deviceTypeInt) {
+        260 -> "无线调光灯"
+        261 -> "无线彩灯"
+        0x000F -> "开关"
+        0x0106 -> "光照度传感"
+        770 -> "温度传感器"
+        8888 -> "摄像头"
+        44 -> "空气质量传感器"
+        514 -> "窗帘"
+        else -> "未知设备"
     }
+
 }
 
 

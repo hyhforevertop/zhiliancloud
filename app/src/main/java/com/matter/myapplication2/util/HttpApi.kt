@@ -1,6 +1,8 @@
 package com.matter.myapplication2.util
 
-val HOST_IPV4= TokenManager.getHostIpv4().toString()//"192.168.98.191"//
+import TokenManager
+
+val HOST_IPV4= TokenManager.getHostIpv4().toString()//TokenManager.getHostIpv4().toString()//"192.168.98.191"//
 val MATTER_SERVER_IPV4=TokenManager.getMatterIpv4().toString() //"192.168.98.191"//
 val HOST= "http://$HOST_IPV4:8080"
 val MATTER_SERVER= "ws://$MATTER_SERVER_IPV4:5580/ws"
@@ -11,5 +13,7 @@ enum class HttpApi(var value: String) {
     ADD_DEVICE_API("${HOST}/device/add"),
     LIGHT_OPERATION("${HOST}/device/lightOperation"),
     LIGHT_ADJUST("${HOST}/device/adjustLight"),
-    BRIDGE_QRCODE("${HOST}/device/generateQrcode")
+    BRIDGE_QRCODE("${HOST}/device/generateQrcode"),
+    TEMPERATURE_SENSOR_STATUS("${HOST}/device/getTemperatureSersorStatus"),
+    AIR_CONDITION_SENSOR_STATUS("${HOST}/device/getAirCondition"),
 }

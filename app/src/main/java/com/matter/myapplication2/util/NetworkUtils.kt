@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 object NetworkUtils {
-     internal val httpThreadPool = Executors.newFixedThreadPool(50)
+    internal val httpThreadPool = Executors.newFixedThreadPool(50)
     internal val wsThreadPool = Executors.newFixedThreadPool(50)
 
     fun getLocalIpAddress(): String? {
@@ -50,6 +50,7 @@ object NetworkUtils {
 
         for (i in 1..254) {
             val ip = "$subnet.$i"
+            println("Scanning $ip")
             if (!httpThreadPool.isShutdown) {
                 httpThreadPool.execute {
                     if (!found.get() && !httpThreadPool.isShutdown) {
@@ -88,6 +89,7 @@ object NetworkUtils {
 
         for (i in 1..254) {
             val ip = "$subnet.$i"
+            println( "Scanning $ip")
             if (!wsThreadPool.isShutdown) {
                 wsThreadPool.execute {
                     if (!found.get() && !wsThreadPool.isShutdown) {

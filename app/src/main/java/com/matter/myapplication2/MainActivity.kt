@@ -3,7 +3,7 @@ package com.matter.myapplication2
 
 import DetailsScreen
 import TokenManager
-import android.content.Intent
+import android.net.nsd.NsdManager
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -30,7 +30,6 @@ import com.matter.myapplication2.ui.ProfilePage
 import com.matter.myapplication2.ui.theme.MyApplication2Theme
 import com.matter.myapplication2.util.HttpApi
 import com.matter.myapplication2.util.HttpClient
-import com.matter.myapplication2.util.ScanService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -43,14 +42,20 @@ import kotlin.coroutines.resume
 
 
 class MainActivity : ComponentActivity() {
+
+    private lateinit var nsdManager: NsdManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         TokenManager.init(this)
 
-        // 启动扫描服务
-        val scanServiceIntent = Intent(this, ScanService::class.java)
-        startService(scanServiceIntent)
+      // 启动扫描服务
+//      val scanServiceIntent = Intent(this, ScanService::class.java)
+//      startService(scanServiceIntent)
+
+
         setContent {
+
             MyApplication2Theme {
                 val navController = rememberNavController()
 
@@ -70,16 +75,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+
+
     override fun onDestroy() {
         super.onDestroy()
         // 在这里添加你需要在关闭时执行的操作
-        stopService(Intent(this, ScanService::class.java)) // 停止扫描服务
-        // 其他清理操作
+//        stopService(Intent(this, ScanService::class.java)) // 停止扫描服务
+
         TokenManager.clearHostIpv4()
         TokenManager.clearMatterIpv4()
     }
 
+
 }
+
 
 fun NavHostController.navigateSingleTopTo(route: String) =
     this.navigate(route) {

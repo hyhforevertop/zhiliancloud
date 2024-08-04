@@ -38,11 +38,17 @@ fun MatterQRCode(value: String, size: Int = 148) {
 @Composable
 fun SvgImage(modifier: Modifier = Modifier, size: Int = 128) {
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
-    //val url = "http://${TokenManager.getHostIpv4()}:5000/get-svg"
-    val url = HttpApi.BRIDGE_QRCODE.value
+    //val url = "http://192.168.14.191:5001/get-svg"
+        val url = HttpApi.BRIDGE_QRCODE.value
     LaunchedEffect(url) {
-        SvgUtils.fetchSvg(url, size) { fetchedBitmap ->
-            bitmap = fetchedBitmap
+        try {
+            SvgUtils.fetchSvg(url, size) { fetchedBitmap ->
+                bitmap = fetchedBitmap
+            }
+        } catch (e: Exception) {
+            // Handle error if needed
+            Log.e("SvgUtils", "Error fetching SVG: ${e.message}")
+            bitmap = null
         }
     }
 

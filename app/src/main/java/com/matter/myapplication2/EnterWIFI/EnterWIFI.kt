@@ -65,7 +65,10 @@ fun EnterWIFI(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(text = "当前WIFI名称: ")
-            Text(text = wifiname)
+
+            TextField(value = wifiname, onValueChange ={
+                wifiname=it
+            } )
         }
 
         Row(

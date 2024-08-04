@@ -42,6 +42,7 @@
             </intent-filter>
         </activity>
         <service android:name=".util.ScanService"/>
+        <service android:name="NsdServiceDiscoveryService" android:exported="false"/>
     </application>
 
 </manifest>

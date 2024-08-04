@@ -12,17 +12,25 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
-
+import kotlinx.coroutines.withContext
 
 class ScanService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Cancel any existing jobs to avoid creating multiple concurrent jobs
+        serviceScope.coroutineContext.cancelChildren()
+
         serviceScope.launch {
             try {
                 val localIp = NetworkUtils.getLocalIpAddress()
                 println("Local IP Address: $localIp")
+
+                withContext(Dispatchers.Main) {
+                    Toasty.success(applicationContext, "当前 IP: $localIp", Toast.LENGTH_SHORT).show()
+                }
 
                 val subnet = localIp?.let { NetworkUtils.getSubnet(it) }
                 if (subnet != null) {
@@ -30,47 +38,41 @@ class ScanService : Service() {
                     val wsPort = 5580
                     val path = "/ws"
 
-                    // Launch HTTP scan in background
-                    val httpScanJob = launch(Dispatchers.IO) {
+                    val httpScanJob = launch {
                         NetworkUtils.scanOpenPorts(subnet, httpPort) { openIp ->
+
                             if (openIp != null) {
                                 println("Open HTTP IP: $openIp")
-
-                                serviceScope.launch(Dispatchers.Main) {
-                                    Toasty.success(applicationContext, "HOST IP: ${openIp}", Toast.LENGTH_SHORT).show()
-                                }
-
+//                                withContext(Dispatchers.Main) {
+//                                    Toasty.success(applicationContext, "HOST IP: $openIp", Toast.LENGTH_SHORT).show()
+//                                }
                                 TokenManager.setHostIpv4(openIp)
-
                             } else {
-
                                 println("No HTTP Port Open found")
-                                serviceScope.launch(Dispatchers.Main) {
-                                    Toasty.success(applicationContext, "HOST IP: 无", Toast.LENGTH_SHORT).show()
-                                }
+//                                withContext(Dispatchers.Main) {
+//                                    Toasty.error(applicationContext, "HOST IP: 无", Toast.LENGTH_SHORT).show()
+//                                }
                             }
                         }
                     }
 
-                    // Launch WebSocket scan in background
-                    val wsScanJob = launch(Dispatchers.IO) {
+                    val wsScanJob = launch {
                         NetworkUtils.scanWebSocketPorts(subnet, wsPort, path) { openIp ->
                             if (openIp != null) {
                                 println("Open WebSocket IP: $openIp")
-                                serviceScope.launch(Dispatchers.Main) {
-                                    Toasty.success(applicationContext, "MatterServer IP: $openIp", Toast.LENGTH_SHORT).show()
-                                }
+//                                withContext(Dispatchers.Main) {
+//                                    Toasty.success(applicationContext, "MatterServer IP: $openIp", Toast.LENGTH_SHORT).show()
+//                                }
                                 TokenManager.setMatterIpv4(openIp)
                             } else {
                                 println("No WebSocket Port Open found")
-                                serviceScope.launch(Dispatchers.Main) {
-                                    Toasty.error(applicationContext, "MatterServer IP: 无", Toast.LENGTH_SHORT).show()
-                                }
+//                                withContext(Dispatchers.Main) {
+//                                    Toasty.error(applicationContext, "MatterServer IP: 无", Toast.LENGTH_SHORT).show()
+//                                }
                             }
                         }
                     }
 
-                    // Wait for both jobs to complete
                     httpScanJob.join()
                     wsScanJob.join()
 
@@ -83,14 +85,13 @@ class ScanService : Service() {
                 Log.e("ScanService", "Error in startScanning: ${e.message}")
             }
         }
+
         return START_STICKY
     }
 
     override fun onDestroy() {
         super.onDestroy()
         serviceScope.cancel()
-        NetworkUtils.httpThreadPool.shutdownNow()
-        NetworkUtils.wsThreadPool.shutdownNow()
     }
 
     override fun onBind(intent: Intent?): IBinder? {

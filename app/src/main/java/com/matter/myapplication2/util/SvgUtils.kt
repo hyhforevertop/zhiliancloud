@@ -1,6 +1,8 @@
+
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Matrix
+import android.util.Log
 import com.caverock.androidsvg.SVG
 import okhttp3.Call
 import okhttp3.Callback
@@ -15,6 +17,7 @@ object SvgUtils {
 
     fun fetchSvg(url: String, targetSize: Int, callback: (Bitmap?) -> Unit) {
         val request = Request.Builder()
+            .addHeader("Authorization", "${TokenManager.getToken()}")
             .url(url)
             .build()
 
@@ -25,24 +28,34 @@ object SvgUtils {
             }
 
             override fun onResponse(call: Call, response: Response) {
-                val svgContent = response.body?.string()
-                if (svgContent != null) {
-                    val svg = SVG.getFromString(svgContent)
-                    val bitmap = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
-                    val canvas = Canvas(bitmap)
+                try {
+                    val svgContent = response.body?.string() // Read the response body once
 
-                    // Calculate the scale factor to fit the target size
-                    val scaleFactor = targetSize / Math.max(svg.documentWidth, svg.documentHeight)
-                    val matrix = Matrix()
-                    matrix.postScale(scaleFactor, scaleFactor, 0f, 0f)
-                    canvas.concat(matrix)
+                    Log.e("SvgUtils", "Response: $svgContent")
 
-                    svg.renderToCanvas(canvas)
-                    callback(bitmap)
-                } else {
-                    callback(null)
+                    if (svgContent != null) {
+                        val svg = SVG.getFromString(svgContent)
+                        val bitmap = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
+                        val canvas = Canvas(bitmap)
+
+                        // Calculate the scale factor to fit the target size
+                        val scaleFactor = targetSize / Math.max(svg.documentWidth, svg.documentHeight)
+                        val matrix = Matrix()
+                        matrix.postScale(scaleFactor, scaleFactor, 0f, 0f)
+                        canvas.concat(matrix)
+
+                        svg.renderToCanvas(canvas)
+                        callback(bitmap)
+                    } else {
+                        Log.e("SvgUtils", "SVG content is null")
+                        callback(null)
+                    }
+                } catch (e: Exception) {
+                    Log.e("SvgUtils", "Error loading SVG: ${e.message}")
+                    callback(null) // Handle error if needed
                 }
             }
+
         })
     }
 }

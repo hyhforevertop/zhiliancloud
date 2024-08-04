@@ -2,6 +2,7 @@ package com.matter.myapplication2.provisioning
 
 
 import android.annotation.SuppressLint
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -29,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.google.chip.chiptool.ChipClient
 import es.dmoral.toasty.Toasty
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -54,6 +56,8 @@ fun ProvisioningScreen(
     var currentStatus by remember { mutableStateOf("Initial status") }
 
     var progress by remember { mutableStateOf(0f) }
+
+    val animatedProgress by animateFloatAsState(targetValue = progress)
 
 
     LaunchedEffect(Unit) {
@@ -86,6 +90,10 @@ fun ProvisioningScreen(
                 }
                 "step5"->{
                     progress=1.0f
+                    Toasty.success(context,"配网成功",Toasty.LENGTH_LONG).show()
+                    delay(3000L)
+                    isRunning=false
+                    onTimeout(navController)
                 }
                 "failed"->{
                     Toasty.error(context,"配网失败",Toasty.LENGTH_LONG).show()
@@ -134,12 +142,13 @@ fun ProvisioningScreen(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 LinearProgressIndicator(
-                    progress = progress,
+                    progress = animatedProgress,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp) // 添加左右间距
+                        .padding(horizontal = 16.dp)
                         .height(20.dp)
-                        .clip(RoundedCornerShape(10.dp)) // 设置左右圆角
+                        .clip(RoundedCornerShape(10.dp))
+
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
@@ -149,7 +158,8 @@ fun ProvisioningScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(onClick = { isRunning = false
                     provisioningJob?.cancel()
-                     onTimeout(navController)
+                    ChipClient.getDeviceController(context).close()
+                    onTimeout(navController)
                 }) {
                     Text("取消")
                 }
