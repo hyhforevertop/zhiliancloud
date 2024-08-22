@@ -47,17 +47,17 @@ class MyWebSocketListener(private val responseListener: WebSocketResponseListene
     }
 
     override fun onMessage(webSocket: WebSocket, text: String) {
-        Log.d(WebSocketClient.TAG, "Received message: $text")
+       // Log.d(WebSocketClient.TAG, "Received message: $text")
         responseListener.onMessageReceived(text)
     }
 
     override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-        Log.d(WebSocketClient.TAG, "Received bytes: ${bytes.hex()}")
+       // Log.d(WebSocketClient.TAG, "Received bytes: ${bytes.hex()}")
         responseListener.onBytesReceived(bytes)
     }
 
     override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-        Log.d(WebSocketClient.TAG, "WebSocket closing: $code / $reason")
+        //Log.d(WebSocketClient.TAG, "WebSocket closing: $code / $reason")
         webSocket.close(1000, null)
     }
 

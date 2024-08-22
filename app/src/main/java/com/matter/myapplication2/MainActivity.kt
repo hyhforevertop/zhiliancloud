@@ -1,7 +1,6 @@
 // MainActivity.kt
 package com.matter.myapplication2
 
-import DetailsScreen
 import TokenManager
 import android.net.nsd.NsdManager
 import android.os.Bundle
@@ -13,7 +12,6 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.core.view.WindowCompat
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -22,11 +20,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.matter.myapplication2.EnterWIFI.EnterWIFI
 import com.matter.myapplication2.QRcodeScan.CameraScreen
+import com.matter.myapplication2.QRcodeScan.PairingSelection
 import com.matter.myapplication2.provisioning.ProvisioningScreen
+import com.matter.myapplication2.provisioning.ShareParing
+import com.matter.myapplication2.provisioning.UpdateName
 import com.matter.myapplication2.ui.DeviceDetail
 import com.matter.myapplication2.ui.DeviceList
 import com.matter.myapplication2.ui.LoginPage
 import com.matter.myapplication2.ui.ProfilePage
+import com.matter.myapplication2.ui.RegisterPage
 import com.matter.myapplication2.ui.theme.MyApplication2Theme
 import com.matter.myapplication2.util.HttpApi
 import com.matter.myapplication2.util.HttpClient
@@ -49,7 +51,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         TokenManager.init(this)
 
-      // 启动扫描服务
+        // 启动扫描服务
 //      val scanServiceIntent = Intent(this, ScanService::class.java)
 //      startService(scanServiceIntent)
 
@@ -67,14 +69,16 @@ class MainActivity : ComponentActivity() {
 
                     window.statusBarColor = 0
                     WindowCompat.setDecorFitsSystemWindows(window, false)
-                    WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars =true
+                    WindowCompat.getInsetsController(
+                        window,
+                        window.decorView
+                    ).isAppearanceLightStatusBars = true
                     //a sd
 
                 }
             }
         }
     }
-
 
 
     override fun onDestroy() {
@@ -106,22 +110,20 @@ fun NavHostController.navigateSingleTopTo(route: String) =
 fun AppNavHost(navController: NavHostController) {
     val token = TokenManager.getToken()
 
-    LaunchedEffect(token) {
-        if (token == null)  {
-            // 如果没有 token，则导航到登录界面
-            navController.navigateSingleTopTo("login")
-        }
+    val startDestination = if (token != null) {
+        "home" // 已登录时导航到主页
+    } else {
+        "login" // 未登录时导航到登录页面
     }
 
     NavHost(
-        navController = navController, startDestination = "home",
+        navController = navController, startDestination = startDestination,
         enterTransition = { EnterTransition.None },
         exitTransition = { ExitTransition.None },
         popExitTransition = { ExitTransition.None },
         popEnterTransition = { EnterTransition.None }
     ) {
         composable("home") { DeviceList(navController = navController) }
-        composable("details") { DetailsScreen(navController = navController) }
         composable("profile") { ProfilePage(navController = navController) }
         composable("login") { LoginPage(navController = navController) }
 
@@ -130,20 +132,29 @@ fun AppNavHost(navController: NavHostController) {
                 DeviceDetail(deviceId = deviceId, navController = navController)
             }
         }
-
         composable("camera") { CameraScreen(navController = navController) }
-
         composable("enterWifi") { EnterWIFI(navController = navController) }
         composable("provisioning") { ProvisioningScreen(navController) }
-
+        composable("updateName/{deviceId}") { backStackEntry ->
+            backStackEntry.arguments?.getString("deviceId")?.let { deviceId ->
+                UpdateName(deviceId = deviceId, navController = navController)
+            }
+        }
+        composable("paring_selection")
+        {
+            PairingSelection(navController = navController)
+        }
+        composable("shareParing")
+        {
+            ShareParing(navController=navController)
+        }
+        
+        composable("register"){
+            RegisterPage(navController = navController)
+        }
 
     }
-
 }
-
-
-
-
 
 
 suspend fun refreshToken(currentToken: String): String? {
@@ -158,7 +169,10 @@ suspend fun refreshToken(currentToken: String): String? {
                 token = currentToken,
                 callback = object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
-                        Log.e(HttpClient.TAG, "网络请求失败 $e ,${TokenManager.getUsername()} ${TokenManager.getPassword()}")
+                        Log.e(
+                            HttpClient.TAG,
+                            "网络请求失败 $e ,${TokenManager.getUsername()} ${TokenManager.getPassword()}"
+                        )
                         continuation.resume(null) // 网络请求失败，返回 null
                     }
 

@@ -6,6 +6,7 @@
     <string name="login">登录</string>
     <string name="username">用户名</string>
     <string name="password">密码</string>
+    <string name="password_confirm">确认密码</string>
     <string name="login_success">登录成功</string>
     <string name="login_failed">登录失败</string>
     <string name="icd_registration_completed">ICD device registration completed, How to trigger to switch to Active Mode : %1$s</string>

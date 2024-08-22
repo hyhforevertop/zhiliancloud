@@ -10,6 +10,8 @@ object TokenManager {
     private const val MATTER_IPV4 ="MATTER_IPV4"
     private const val WIFI_PASSWORD ="WIFI_PASSWORD"
     private const val WIFI_NAME="WIFI_NAME"
+    private const val PAIRING_SELECTION="PAIRING_SELECTION"
+    private const val QRCODE_INFO="QRCODE_INFO"
     private var sharedPreferences: SharedPreferences? = null
 
     // 初始化 SharedPreferences
@@ -17,6 +19,33 @@ object TokenManager {
         sharedPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
     }
 
+    fun getQrcodeInfo(): String? {
+        return sharedPreferences?.getString(QRCODE_INFO, null)
+    }
+    fun setQrcodeInfo(info: String) {
+        val editor = sharedPreferences?.edit()
+        editor?.putString(QRCODE_INFO, info)
+        editor?.apply()
+    }
+    fun clearQrcodeInfo() {
+        val editor = sharedPreferences?.edit()
+        editor?.remove(QRCODE_INFO)
+        editor?.apply()
+    }
+    fun getPairingSelection(): String? {
+        return sharedPreferences?.getString(PAIRING_SELECTION, null)
+    }
+
+    fun setPairingSelection(selection: String) {
+        val editor = sharedPreferences?.edit()
+        editor?.putString(PAIRING_SELECTION, selection)
+        editor?.apply()
+    }
+    fun clearPairingSelection() {
+        val editor = sharedPreferences?.edit()
+        editor?.remove(PAIRING_SELECTION)
+        editor?.apply()
+    }
     fun getMatterIpv4(): String? {
         return sharedPreferences?.getString(MATTER_IPV4, null)
     }

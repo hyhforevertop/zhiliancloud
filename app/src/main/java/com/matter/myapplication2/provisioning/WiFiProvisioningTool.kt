@@ -179,7 +179,7 @@ class WiFiProvisioningTool(private val context: Context, private val scope: Coro
     private suspend fun enhancedCommission() {
       val lastDevice = DeviceIdUtil.getLastDeviceId(context).toString(10).toLong()
       val TAG = "EnhancedCommission"
-      val testDuration = 180
+      val testDuration = 300
       val testIteration = 1000
       setCurrentStatus("step2")
       val devicePointer = try {
@@ -218,7 +218,7 @@ class WiFiProvisioningTool(private val context: Context, private val scope: Coro
               override fun onMessageReceived(message: String) {
                 if (message.contains("result")) {
                   setCurrentStatus("step3")
-                  addDevice(message, manualPairingCode.toString(),dtValue,vpValue)
+                  addDevice(message, qrCode.toString(),dtValue,vpValue)
                 }
 
               }
@@ -303,7 +303,7 @@ class WiFiProvisioningTool(private val context: Context, private val scope: Coro
   }
 
   companion object {
-    private const val TAG = "WiFiProvisioningTool"
+    const val TAG = "WiFiProvisioningTool"
     private const val DEVICE_ATTESTATION_FAILED_TIMEOUT = 30
     private const val STATUS_PAIRING_SUCCESS = 0
   }

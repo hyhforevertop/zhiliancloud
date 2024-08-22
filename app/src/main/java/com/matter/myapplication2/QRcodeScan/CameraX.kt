@@ -1,5 +1,6 @@
 package com.matter.myapplication2.QRcodeScan
 
+import TokenManager
 import android.Manifest
 import android.util.Log
 import android.widget.Toast
@@ -46,7 +47,7 @@ import matter.onboardingpayload.OnboardingPayloadParser
 import matter.onboardingpayload.UnrecognizedQrCodeException
 
 @Composable
-fun CameraX(onBarcodeScanned:  (String) -> Unit) {
+fun CameraX(onBarcodeScanned: (String) -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
 
@@ -65,24 +66,27 @@ fun CameraX(onBarcodeScanned:  (String) -> Unit) {
             .padding(30.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
-    ){
+    ) {
         Text(
-            text = "步骤1"
-        ,  fontSize = 20.sp,
+            text = "步骤1", fontSize = 20.sp,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 100.dp))
-        Text(text = "请将二维码放在相机的扫描区域",
+            modifier = Modifier.padding(top = 100.dp)
+        )
+        Text(
+            text = "请将二维码放在相机的扫描区域",
             fontSize = 20.sp,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 20.dp))
+            modifier = Modifier.padding(top = 20.dp)
+        )
         AndroidView(
             factory = { previewView },
             modifier = Modifier
                 .fillMaxSize()
-                .padding(vertical = 100.dp))
+                .padding(vertical = 100.dp)
+        )
 
     }
-   
+
     LaunchedEffect(cameraProviderFuture) {
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
@@ -101,7 +105,12 @@ fun CameraX(onBarcodeScanned:  (String) -> Unit) {
 
             try {
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview, imageAnalysis)
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    cameraSelector,
+                    preview,
+                    imageAnalysis
+                )
             } catch (e: Exception) {
                 Log.e("CameraX", "Use case binding failed", e)
             }
@@ -140,16 +149,18 @@ private fun processImageProxy(
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun CameraScreen(navController: NavHostController) {
-    val permissionState = rememberMultiplePermissionsState( listOf(
-        Manifest.permission.CAMERA,
-        Manifest.permission.BLUETOOTH_SCAN,
-        Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.BLUETOOTH,
-        Manifest.permission.BLUETOOTH_CONNECT,
-    ))
+    val permissionState = rememberMultiplePermissionsState(
+        listOf(
+            Manifest.permission.CAMERA,
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.BLUETOOTH,
+            Manifest.permission.BLUETOOTH_CONNECT,
+        )
+    )
 
     PermissionsRequired(
-        multiplePermissionsState=permissionState,
+        multiplePermissionsState = permissionState,
         permissionsNotGrantedContent = {
             Column(
                 modifier = Modifier.fillMaxSize()
@@ -178,15 +189,21 @@ fun CameraScreen(navController: NavHostController) {
             // 提示用户权限不可用的UI
         }
     ) {
-        val context= LocalContext.current
+        val context = LocalContext.current
         CameraX { barcode ->
             Log.e("barcode", barcode)
             try {
                 val payload = OnboardingPayloadParser().parseQrCode(barcode)
-                val deviceInfo = CHIPDeviceInfo.fromSetupPayload(payload)
-                DeviceInfoStorage.saveDeviceInfo(context, deviceInfo)
-                Log.e("deviceinfo", deviceInfo.toString())
-                navController.navigateSingleTopTo("enterWifi")
+
+                if (TokenManager.getPairingSelection() == "share") {
+                    TokenManager.setQrcodeInfo(barcode)
+                    navController.navigateSingleTopTo("shareParing")
+                } else {
+                    val deviceInfo = CHIPDeviceInfo.fromSetupPayload(payload)
+                    DeviceInfoStorage.saveDeviceInfo(context, deviceInfo)
+                    Log.e("deviceinfo", deviceInfo.toString())
+                    navController.navigateSingleTopTo("enterWifi")
+                }
             } catch (ex: UnrecognizedQrCodeException) {
                 Log.e("barcode", "Unrecognized QR Code", ex)
                 Toasty.error(context, "Unrecognized QR Code", Toast.LENGTH_SHORT).show()

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -56,8 +57,7 @@ import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalCoroutinesApi::class)
 @Composable
-fun LoginPage(modifier: Modifier=Modifier,navController: NavHostController)
-{
+fun LoginPage(modifier: Modifier = Modifier, navController: NavHostController) {
 
 
     val context = LocalContext.current
@@ -77,18 +77,22 @@ fun LoginPage(modifier: Modifier=Modifier,navController: NavHostController)
         navController.navigateSingleTopTo("home")
     }
 
-        LaunchedEffect(loginClicked) {
-            val response = Login(usernameInput, passwordInput , hostIp = if (HostIp.isNotEmpty()) HostIp else TokenManager.getHostIpv4().toString())
+    LaunchedEffect(loginClicked) {
+        val response = Login(
+            usernameInput,
+            passwordInput,
+            hostIp = HostIp
+        )
 
-            if (response.success) {
-                response.errorMessage?.let {
-                    Toasty.success(context, it, Toasty.LENGTH_SHORT).show()
-                }
-                navController.navigateSingleTopTo("home")
-            } else {
-                response.errorMessage?.let { Toasty.error(context, it, Toasty.LENGTH_SHORT).show() }
+        if (response.success) {
+            response.errorMessage?.let {
+                Toasty.success(context, it, Toasty.LENGTH_SHORT).show()
             }
+            navController.navigateSingleTopTo("home")
+        } else {
+            response.errorMessage?.let { Toasty.error(context, it, Toasty.LENGTH_SHORT).show() }
         }
+    }
 
 
 
@@ -147,11 +151,11 @@ fun LoginPage(modifier: Modifier=Modifier,navController: NavHostController)
                 )
 
                 TextField(
-                    value = usernameInput, onValueChange = {usernameInput=it},
+                    value = usernameInput, onValueChange = { usernameInput = it },
                     label = {
                         Text(text = stringResource(id = R.string.username))
                     },
-                    keyboardOptions= KeyboardOptions.Default.copy(
+                    keyboardOptions = KeyboardOptions.Default.copy(
                         imeAction = ImeAction.Next
                     ),
                     shape = RoundedCornerShape(12.dp),
@@ -160,14 +164,14 @@ fun LoginPage(modifier: Modifier=Modifier,navController: NavHostController)
                         unfocusedIndicatorColor = Color.Transparent // 去掉底部的横线
                     ),
 
-                )
+                    )
 
                 TextField(
-                    value = passwordInput, onValueChange = {passwordInput=it},
+                    value = passwordInput, onValueChange = { passwordInput = it },
                     label = {
                         Text(text = stringResource(id = R.string.password))
                     },
-                    keyboardOptions= KeyboardOptions.Default.copy(
+                    keyboardOptions = KeyboardOptions.Default.copy(
                         imeAction = ImeAction.Done
                     ),
                     shape = RoundedCornerShape(12.dp),
@@ -178,10 +182,12 @@ fun LoginPage(modifier: Modifier=Modifier,navController: NavHostController)
                 )
 
                 Button(onClick = {
-                    loginClicked=!loginClicked
+                    loginClicked = !loginClicked
                 }) {
-                    Text(text = "登录",
-                        fontSize = 20.sp)
+                    Text(
+                        text = "登录",
+                        fontSize = 20.sp
+                    )
                 }
 
 
@@ -200,7 +206,7 @@ fun LoginPage(modifier: Modifier=Modifier,navController: NavHostController)
 
                     TextField(
                         value = MatterIp,
-                        onValueChange = { MatterIp= it },
+                        onValueChange = { MatterIp = it },
                         label = { Text(text = "MatterIp") },
                         keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
                         shape = RoundedCornerShape(12.dp),
@@ -216,76 +222,91 @@ fun LoginPage(modifier: Modifier=Modifier,navController: NavHostController)
 
                         TokenManager.setHostIpv4(HostIp)
                         TokenManager.setMatterIpv4(MatterIp)
-                        Log.e("Login", "onClick: ${TokenManager.getHostIpv4()} ${TokenManager.getMatterIpv4()}")
-                        Log.e("Login", "${HttpApi.BASE_URL.value}")
+                        Log.e(
+                            "Login",
+                            "onClick: ${TokenManager.getHostIpv4()} ${TokenManager.getMatterIpv4()}"
+                        )
+                        Log.e("Login", HttpApi.BASE_URL.value)
                         Toasty.success(context, "保存成功", Toast.LENGTH_SHORT).show()
                     }) {
                         Text(text = "保存")
                     }
                 }
 
-                Button(
-                    onClick = {
-                        showTextFields = !showTextFields
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ){
+
+                    Box(modifier = Modifier.weight(1f))
+                    Button(
+                        onClick = {
+                            showTextFields = !showTextFields
+                        }, modifier = Modifier
+                            .height(40.dp)
+                            .padding(end = 20.dp)
+                    ) {
+                        Text(
+                            text = if (showTextFields) "收起" else "设置网络",
+                        )
                     }
-                ) {
-                    Text(
-                        text = if (showTextFields) "收起" else "设置网络",
-                        fontSize = 20.sp
-                    )
+                    
+                    Button(onClick = {
+                        navController.navigateSingleTopTo("register")
+                    }) {
+                        Text(text = "注册")
+                    }
                 }
             }
 
 
         }
 
-
-
-
     }
 
 }
 
-suspend fun Login(username: String, password: String,hostIp:String): LoginResult = withContext(Dispatchers.IO) {
-    val TAG = "Login"
-    val json = """
+suspend fun Login(username: String, password: String, hostIp: String): LoginResult =
+    withContext(Dispatchers.IO) {
+        val TAG = "Login"
+        val json = """
         {
             "username": "$username",
             "password": "$password"
         }
     """
-    val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
-    val requestBody = json.toRequestBody(mediaType)
-    val client = OkHttpClient()
+        val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+        val requestBody = json.toRequestBody(mediaType)
+        val client = OkHttpClient()
 
-    try {
-        val request = Request.Builder()
-            .url("http://${hostIp}:8080/api/login")
-            .post(requestBody)
-            .build()
-        Log.e(TAG, "onResponse: ${request.url} ${request.method} ${request.body} ")
-        val response = client.newCall(request).execute()
-        val responseBody = response.body?.string()
+        Log.e(TAG, json)
+        try {
+            val request = Request.Builder()
+                .url("http://${hostIp.toString()}:8080/api/login")
+                .post(requestBody)
+                .build()
+            Log.e(TAG, "onResponse: ${request.url}  ")
+            val response = client.newCall(request).execute()
+            val responseBody = response.body?.string()
 
-        if (response.isSuccessful && !responseBody.isNullOrBlank()) {
-            Log.d(TAG, "onResponse: $responseBody")
-            val jsonObject = JSONObject(responseBody)
-            val token = jsonObject.getJSONObject("data").getString("token")
+            if (response.isSuccessful && !responseBody.isNullOrBlank()) {
+                Log.d(TAG, "onResponse: $responseBody")
+                val jsonObject = JSONObject(responseBody)
+                val token = jsonObject.getJSONObject("data").getString("token")
 
-            TokenManager.setToken(token)
-            TokenManager.setUsername(username)
-            TokenManager.setPassword(password)
+                TokenManager.setToken(token)
+                TokenManager.setUsername(username)
+                TokenManager.setPassword(password)
 
-            return@withContext LoginResult(true, "登录成功")
-        } else {
-            Log.e(TAG, "onResponse: ${responseBody ?: "Empty response body"}")
-            return@withContext LoginResult(false, "登录失败，用户名或密码错误")
+                return@withContext LoginResult(true, "登录成功")
+            } else {
+                Log.e(TAG, "onResponse: ${responseBody ?: "Empty response body"}")
+                return@withContext LoginResult(false, "登录失败，用户名或密码错误")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Login error: ${e.message}")
+            return@withContext LoginResult(false, "登录失败，网络错误")
         }
-    } catch (e: Exception) {
-        Log.e(TAG, "Login error: ${e.message}")
-        return@withContext LoginResult(false, "登录失败，网络错误")
     }
-}
 
 data class LoginResult(val success: Boolean, val errorMessage: String? = null)
 

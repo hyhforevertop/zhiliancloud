@@ -93,7 +93,12 @@ fun ProvisioningScreen(
                     Toasty.success(context,"配网成功",Toasty.LENGTH_LONG).show()
                     delay(3000L)
                     isRunning=false
-                    onTimeout(navController)
+                    navController.navigate("home")
+                    {
+                        popUpTo("home") {
+                            inclusive = true
+                        }
+                    }
                 }
                 "failed"->{
                     Toasty.error(context,"配网失败",Toasty.LENGTH_LONG).show()

@@ -83,7 +83,7 @@ fun ProfilePage(modifier: Modifier = Modifier, navController: NavHostController)
                         navController.navigateSingleTopTo("login")
 
                     }) {
-                    Text(text = "Exit")
+                    Text(text = "退出登录")
                 }
             }
 

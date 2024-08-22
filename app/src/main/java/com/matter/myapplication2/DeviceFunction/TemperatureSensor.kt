@@ -89,6 +89,4 @@ suspend fun getTemperature(device: Device?): Double = withContext(Dispatchers.IO
         return@withContext -0.1
     }
 
-
-
 }
